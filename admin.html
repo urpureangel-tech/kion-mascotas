@@ -9,8 +9,8 @@
 <label><input id="esterilizado" type="checkbox" style="width:auto"> Esterilizado/a</label><label><input id="tiene_chip" type="checkbox" style="width:auto"> Tiene chip</label></div>
 <button type="button" onclick="dlg.close()">Cancelar</button> <button class="primary">Guardar</button></form></dialog>
 <script>
-const SUPABASE_URL="TU_SUPABASE_URL";
-const SUPABASE_KEY="TU_SUPABASE_PUBLISHABLE_KEY";
+const SUPABASE_URL="https://rughpuemhsriuiivwbag.supabase.co";
+const SUPABASE_KEY="sb_publishable_Vc3jwQ_pxQlhPv6BNidZNg_iystTQtl";
 const fields=["nombre_mascota","sexo","raza","color","fecha_nacimiento","comuna","nombre_dueno","telefono_principal","telefono_secundario","foto_url","observaciones"];
 const $=x=>document.getElementById(x),dlg=$("dlg");
 async function api(path,opt={}){let r=await fetch(SUPABASE_URL+"/rest/v1/"+path,{...opt,headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"}});if(!r.ok)throw Error("Error "+r.status);return r.status===204?null:r.json()}
