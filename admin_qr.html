@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KION Mascotas Admin</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;margin:0;background:#eef8f6;color:#17322e}
+header{background:#0f766e;color:white;padding:18px}
+header h2{margin:0}
+main{max-width:900px;margin:auto;padding:18px}
+button,a{padding:10px 12px;border:0;border-radius:10px;font-weight:bold;cursor:pointer;text-decoration:none}
+.primary{background:#0f766e;color:white}
+.soft{background:#dcefeb;color:#174d47}
+.danger{background:#b42318;color:white}
+.card{background:white;border:1px solid #d8e9e5;border-radius:15px;padding:14px;margin:10px 0;display:flex;gap:12px;align-items:center}
+.card img{width:70px;height:70px;object-fit:cover;border-radius:12px;background:#ddd}
+.grow{flex:1}
+dialog{border:0;border-radius:16px;width:min(650px,94vw)}
+input,textarea,select{width:100%;padding:10px;margin:5px 0 10px;box-sizing:border-box;border:1px solid #c9ddd8;border-radius:9px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.hidden{display:none!important}
+#loginBox{max-width:430px;margin:45px auto;background:#fff;padding:22px;border:1px solid #d8e9e5;border-radius:18px;box-shadow:0 8px 30px #0001}
+#loginBox h2{margin-top:0}
+.msg{margin-top:10px;color:#b42318;font-size:14px}
+.ok{color:#0f766e}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.userline{font-size:13px;color:#55716b}
+.photoBox{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.photoPreview{width:110px;height:110px;object-fit:cover;border-radius:14px;border:1px solid #d8e9e5;background:#f3f7f6}
+.help{font-size:12px;color:#607c76;margin-top:-5px;margin-bottom:10px}
+.plate{display:inline-block;background:#fff4cc;color:#6b5200;border:1px solid #ead58a;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:bold;margin-top:5px}
+.qrbox{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:600px){
+ .grid{grid-template-columns:1fr}.full{grid-column:auto}
+ .card{align-items:flex-start;flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<header><h2>🐾 KION Mascotas · Administración</h2></header>
+
+<main>
+<section id="loginBox">
+  <h2>Ingresar</h2>
+  <p>Acceso solo para administradores autorizados.</p>
+  <form id="loginForm">
+    <label>Correo
+      <input id="loginEmail" type="email" autocomplete="username" required>
+    </label>
+    <label>Contraseña
+      <input id="loginPassword" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="primary" type="submit">Entrar</button>
+    <div id="loginMsg" class="msg"></div>
+  </form>
+</section>
+
+<section id="adminArea" class="hidden">
+  <div class="topbar">
+    <div>
+      <button class="primary" onclick="nuevo()">＋ Nueva mascota</button>
+      <button class="soft" onclick="cargar()">↻ Actualizar</button>
+    </div>
+    <div>
+      <span id="usuarioActual" class="userline"></span>
+      <button class="soft" onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>
+  </div>
+  <p class="help">Al crear una mascota nueva, el sistema intentará asignarle automáticamente la próxima placa KION disponible.</p>
+  <div id="lista">Cargando…</div>
+</section>
+</main>
+
+<dialog id="dlg">
+<form id="form" onsubmit="guardar(event)">
+  <h2 id="titulo">Mascota</h2>
+  <input id="id" type="hidden">
+  <div class="grid">
+    <label>Nombre<input id="nombre_mascota" required></label>
+    <label>Sexo<select id="sexo"><option></option><option>Hembra</option><option>Macho</option></select></label>
+    <label>Raza<input id="raza"></label>
+    <label>Color<input id="color"></label>
+    <label>Nacimiento<input id="fecha_nacimiento" type="date"></label>
+    <label>Comuna<input id="comuna"></label>
+    <label>Dueño<input id="nombre_dueno"></label>
+    <label>Teléfono principal<input id="telefono_principal"></label>
+    <label>Teléfono secundario<input id="telefono_secundario"></label>
+
+    <div class="full">
+      <label>Foto de la mascota</label>
+      <div class="photoBox">
+        <img id="fotoPreview" class="photoPreview" alt="Vista previa">
+        <div class="grow">
+          <input id="foto_archivo" type="file" accept="image/*">
+          <div class="help">Puedes elegir una foto desde el computador o el celular. Al guardar, se subirá automáticamente.</div>
+          <input id="foto_url" type="hidden">
+          <div id="fotoEstado" class="help"></div>
+        </div>
+      </div>
+    </div>
+
+    <label class="full">Observaciones<textarea id="observaciones"></textarea></label>
+    <label><input id="esterilizado" type="checkbox" style="width:auto"> Esterilizado/a</label>
+    <label><input id="tiene_chip" type="checkbox" style="width:auto"> Tiene chip</label>
+  </div>
+  <button type="button" onclick="dlg.close()">Cancelar</button>
+  <button id="guardarBtn" class="primary" type="submit">Guardar</button>
+</form>
+</dialog>
+
+<script>
+const SUPABASE_URL="https://rughpuemhsriuiivwbag.supabase.co";
+const SUPABASE_KEY="sb_publishable_Vc3jwQ_pxQlhPv6BNidZNg_iystTQtl";
+const STORAGE_BUCKET="mascotas";
+
+const fields=["nombre_mascota","sexo","raza","color","fecha_nacimiento","comuna","nombre_dueno","telefono_principal","telefono_secundario","foto_url","observaciones"];
+const $=x=>document.getElementById(x), dlg=$("dlg");
+
+function token(){ return sessionStorage.getItem("kion_access_token") || ""; }
+function emailGuardado(){ return sessionStorage.getItem("kion_email") || ""; }
+
+async function iniciarSesion(email,password){
+  const r=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{
+    method:"POST",
+    headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({email,password})
+  });
+  const data=await r.json();
+  if(!r.ok) throw new Error(data.msg || data.error_description || "No se pudo iniciar sesión");
+  sessionStorage.setItem("kion_access_token",data.access_token);
+  sessionStorage.setItem("kion_email",data.user?.email || email);
+}
+
+function mostrarAdmin(){
+  $("loginBox").classList.add("hidden");
+  $("adminArea").classList.remove("hidden");
+  $("usuarioActual").textContent=emailGuardado();
+  cargar();
+}
+
+function mostrarLogin(){
+  $("adminArea").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+}
+
+$("loginForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  $("loginMsg").textContent="Ingresando…";
+  try{
+    await iniciarSesion($("loginEmail").value.trim(),$("loginPassword").value);
+    $("loginMsg").textContent="";
+    $("loginPassword").value="";
+    mostrarAdmin();
+  }catch(err){
+    $("loginMsg").textContent="No se pudo ingresar. Revisa correo y contraseña.";
+  }
+});
+
+function cerrarSesion(){
+  sessionStorage.removeItem("kion_access_token");
+  sessionStorage.removeItem("kion_email");
+  $("lista").innerHTML="";
+  mostrarLogin();
+}
+
+async function api(path,opt={}){
+  const access=token();
+  if(!access) throw new Error("Debes iniciar sesión");
+  const r=await fetch(SUPABASE_URL+"/rest/v1/"+path,{
+    ...opt,
+    headers:{
+      apikey:SUPABASE_KEY,
+      Authorization:"Bearer "+access,
+      "Content-Type":"application/json",
+      Prefer:"return=representation",
+      ...(opt.headers||{})
+    }
+  });
+  if(r.status===401){
+    cerrarSesion();
+    throw new Error("La sesión venció. Vuelve a ingresar.");
+  }
+  if(!r.ok) throw new Error("Error "+r.status+": "+await r.text());
+  if(r.status===204) return null;
+  const text=await r.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function limpiarNombreArchivo(nombre){
+  return nombre
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-zA-Z0-9._-]/g,"_");
+}
+
+async function subirFoto(file){
+  if(!file) return $("foto_url").value || null;
+  const access=token();
+  if(!access) throw new Error("Debes iniciar sesión");
+
+  const limpio=limpiarNombreArchivo(file.name || "foto.jpg");
+  const ruta="fotos/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+limpio;
+
+  $("fotoEstado").textContent="Subiendo foto…";
+
+  const r=await fetch(
+    SUPABASE_URL+"/storage/v1/object/"+STORAGE_BUCKET+"/"+encodeURI(ruta),
+    {
+      method:"POST",
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:"Bearer "+access,
+        "Content-Type":file.type || "application/octet-stream",
+        "x-upsert":"false"
+      },
+      body:file
+    }
+  );
+
+  if(!r.ok){
+    const txt=await r.text();
+    throw new Error("No se pudo subir la foto ("+r.status+"): "+txt);
+  }
+
+  const publicUrl=SUPABASE_URL+"/storage/v1/object/public/"+STORAGE_BUCKET+"/"+encodeURI(ruta);
+  $("foto_url").value=publicUrl;
+  $("fotoEstado").textContent="Foto subida correctamente.";
+  $("fotoEstado").className="help ok";
+  return publicUrl;
+}
+
+$("foto_archivo").addEventListener("change",e=>{
+  const file=e.target.files?.[0];
+  if(!file) return;
+  $("fotoPreview").src=URL.createObjectURL(file);
+  $("fotoEstado").textContent="Foto lista para subir al guardar.";
+  $("fotoEstado").className="help";
+});
+
+
+function codigoPlacaDesdeId(id){
+  return "KION-"+String(id).padStart(4,"0");
+}
+
+function urlFichaQR(codigo){
+  return new URL("index_qr_v2.html?qr="+encodeURIComponent(codigo), location.href).href;
+}
+
+async function buscarPlacaMascota(mascotaId){
+  const rows=await api("placas_qr?select=*&mascota_id=eq."+mascotaId+"&limit=1");
+  return rows?.[0] || null;
+}
+
+async function asegurarPlaca(mascotaId){
+  let placa=await buscarPlacaMascota(mascotaId);
+  if(placa) return placa;
+
+  // Busca un código libre y crea la placa sin intervención manual.
+  let n=Number(mascotaId) || 1;
+  for(let intentos=0; intentos<10000; intentos++,n++){
+    const codigo=codigoPlacaDesdeId(n);
+    const existe=await api("placas_qr?select=id,codigo&codigo=eq."+encodeURIComponent(codigo)+"&limit=1");
+    if(existe?.length) continue;
+    try{
+      const creada=await api("placas_qr",{
+        method:"POST",
+        body:JSON.stringify({codigo,estado:"activo",mascota_id:Number(mascotaId)})
+      });
+      return creada?.[0] || {codigo,estado:"activo",mascota_id:Number(mascotaId)};
+    }catch(err){
+      // Si hubo una colisión de código, intenta con el siguiente.
+      if(String(err.message).includes("duplicate") || String(err.message).includes("23505")) continue;
+      throw err;
+    }
+  }
+  throw new Error("No se pudo generar un código de placa disponible.");
+}
+
+async function copiarQR(codigo){
+  const url=urlFichaQR(codigo);
+  try{
+    await navigator.clipboard.writeText(url);
+    alert("Enlace QR copiado:\\n"+url);
+  }catch{
+    prompt("Copia este enlace para generar/imprimir el QR:",url);
+  }
+}
+
+function abrirQR(codigo){
+  window.open(urlFichaQR(codigo),"_blank");
+}
+
+async function cargar(){
+  try{
+    let ps=await api("mascotas?select=*&order=id.desc");
+    let placas=[];
+    try{ placas=await api("placas_qr?select=*"); }catch(_){}
+    const placaPorMascota=new Map((placas||[]).filter(x=>x.mascota_id!=null).map(x=>[String(x.mascota_id),x]));
+
+    $("lista").innerHTML="";
+    if(!ps.length) $("lista").innerHTML="<p>No hay mascotas registradas.</p>";
+    ps.forEach(p=>{
+      const placa=placaPorMascota.get(String(p.id));
+      const codigo=placa?.codigo || "";
+      let d=document.createElement("div");
+      d.className="card";
+      d.innerHTML=`<img src="${p.foto_url||""}">
+        <div class="grow">
+          <b>${p.nombre_mascota||"Sin nombre"}</b><br>
+          <small>${[p.raza,p.color,p.comuna].filter(Boolean).join(" · ")}</small><br>
+          ${codigo ? `<span class="plate">🏷️ ${codigo}</span>` : `<span class="help">Sin placa asignada</span>`}
+          ${codigo ? `<div class="qrbox"><button class="soft qrOpen" type="button">Abrir QR</button><button class="soft qrCopy" type="button">Copiar enlace QR</button></div>` : ""}
+        </div>
+        <button class="editBtn">Editar</button>
+        <a href="index.html?id=${p.id}" target="_blank">Ver ficha</a>
+        <button class="danger deleteBtn">Eliminar</button>`;
+      d.querySelector(".editBtn").onclick=()=>editar(p);
+      d.querySelector(".deleteBtn").onclick=()=>eliminar(p);
+      if(codigo){
+        d.querySelector(".qrOpen").onclick=()=>abrirQR(codigo);
+        d.querySelector(".qrCopy").onclick=()=>copiarQR(codigo);
+      }
+      $("lista").append(d);
+    });
+  }catch(e){
+    $("lista").innerHTML="<p>No se pudo cargar: "+e.message+"</p>";
+  }
+}
+
+function nuevo(){
+  $("form").reset();
+  $("id").value="";
+  $("foto_url").value="";
+  $("fotoPreview").removeAttribute("src");
+  $("fotoEstado").textContent="";
+  $("fotoEstado").className="help";
+  $("titulo").textContent="Nueva mascota";
+  dlg.showModal();
+}
+
+function editar(p){
+  $("form").reset();
+  $("id").value=p.id;
+  fields.forEach(f=>$(f).value=p[f]??"");
+  $("esterilizado").checked=p.esterilizado===true;
+  $("tiene_chip").checked=p.tiene_chip===true;
+  $("fotoPreview").src=p.foto_url||"";
+  $("fotoEstado").textContent=p.foto_url ? "Foto actual. Puedes elegir otra para reemplazarla." : "";
+  $("fotoEstado").className="help";
+  $("titulo").textContent="Editar mascota";
+  dlg.showModal();
+}
+
+async function guardar(e){
+  e.preventDefault();
+  $("guardarBtn").disabled=true;
+  $("guardarBtn").textContent="Guardando…";
+
+  try{
+    const file=$("foto_archivo").files?.[0];
+    if(file) await subirFoto(file);
+
+    let data={};
+    fields.forEach(f=>data[f]=$(f).value||null);
+    data.esterilizado=$("esterilizado").checked;
+    data.tiene_chip=$("tiene_chip").checked;
+
+    let id=$("id").value;
+    let placaNueva=null;
+    if(id){
+      await api("mascotas?id=eq."+id,{method:"PATCH",body:JSON.stringify(data)});
+      try{ placaNueva=await asegurarPlaca(Number(id)); }catch(err){ console.warn("No se pudo asegurar placa:",err); }
+    }else{
+      const creada=await api("mascotas",{method:"POST",body:JSON.stringify(data)});
+      id=creada?.[0]?.id;
+      if(!id) throw new Error("La mascota se guardó, pero no se recibió su ID.");
+      placaNueva=await asegurarPlaca(Number(id));
+    }
+
+    dlg.close();
+    await cargar();
+    alert(placaNueva?.codigo ? "Mascota guardada. Placa asignada automáticamente: "+placaNueva.codigo : "Mascota guardada correctamente.");
+  }catch(e){
+    alert("No se pudo guardar: "+e.message);
+  }finally{
+    $("guardarBtn").disabled=false;
+    $("guardarBtn").textContent="Guardar";
+  }
+}
+
+async function eliminar(p){
+  if(!confirm("¿Eliminar "+(p.nombre_mascota||"esta mascota")+"?")) return;
+  try{
+    await api("mascotas?id=eq."+p.id,{method:"DELETE"});
+    await cargar();
+  }catch(e){
+    alert("No se pudo eliminar: "+e.message);
+  }
+}
+
+if(token()) mostrarAdmin();
+else mostrarLogin();
+</script>
+</body>
+</html>
